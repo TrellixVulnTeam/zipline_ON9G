@@ -177,8 +177,9 @@ class AlgorithmSimulator(object):
                     perf_tracker.position_tracker.handle_splits(splits)
 
         def handle_benchmark(date, benchmark_source=self.benchmark_source):
-            perf_tracker.all_benchmark_returns[date] = \
-                benchmark_source.get_value(date)
+            return
+            # perf_tracker.all_benchmark_returns[date] = \
+            #     benchmark_source.get_value(date)
 
         def on_exit():
             # Remove references to algo, data portal, et al to break cycles

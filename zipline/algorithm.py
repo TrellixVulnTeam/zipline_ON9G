@@ -541,15 +541,21 @@ class TradingAlgorithm(object):
         )
 
     def _create_benchmark_source(self):
-        if self.benchmark_sid is not None:
-            benchmark_asset = self.asset_finder.retrieve_asset(
-                self.benchmark_sid)
-            benchmark_returns = None
-        else:
-            benchmark_asset = None
-            # get benchmark info from trading environment, which defaults to
-            # downloading data from IEX Trading.
-            benchmark_returns = self.trading_environment.benchmark_returns
+        benchmark_asset = None
+        # get benchmark info from trading environment, which defaults to
+        # downloading data from IEX Trading.
+        benchmark_returns = self.trading_environment.benchmark_returns
+
+
+        # if self.benchmark_sid is not None:
+        #     benchmark_asset = self.asset_finder.retrieve_asset(
+        #         self.benchmark_sid)
+        #     benchmark_returns = None
+        # else:
+        #     benchmark_asset = None
+        #     # get benchmark info from trading environment, which defaults to
+        #     # downloading data from IEX Trading.
+        #     benchmark_returns = self.trading_environment.benchmark_returns
         return BenchmarkSource(
             benchmark_asset=benchmark_asset,
             trading_calendar=self.trading_calendar,

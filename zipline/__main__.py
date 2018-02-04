@@ -1,15 +1,17 @@
 import errno
 import os
+import pkgutil
+from importlib import import_module
 
 import click
 import logbook
 import pandas as pd
 from six import text_type
-
 from zipline.data import bundles as bundles_module
+from zipline.gens import brokers
 from zipline.utils.calendars.calendar_utils import get_calendar
-from zipline.utils.compat import wraps
 from zipline.utils.cli import Date, Timestamp
+from zipline.utils.compat import wraps
 from zipline.utils.run_algo import _run, load_extensions
 
 try:
@@ -29,9 +31,9 @@ except NameError:
     '--strict-extensions/--non-strict-extensions',
     is_flag=True,
     help='If --strict-extensions is passed then zipline will not run if it'
-    ' cannot load all of the specified extensions. If this is not passed or'
-    ' --non-strict-extensions is passed then the failure will be logged but'
-    ' execution will continue.',
+         ' cannot load all of the specified extensions. If this is not passed or'
+         ' --non-strict-extensions is passed then the failure will be logged but'
+         ' execution will continue.',
 )
 @click.option(
     '--default-extension/--no-default-extension',
@@ -65,6 +67,7 @@ def extract_option_object(option):
     option_object : click.Option
         The option object that this decorator will create.
     """
+
     @option
     def opt():
         pass
@@ -96,7 +99,9 @@ def ipython_only(option):
         def _(*args, **kwargs):
             kwargs[argname] = None
             return f(*args, **kwargs)
+
         return _
+
     return d
 
 
@@ -118,9 +123,9 @@ def ipython_only(option):
     '--define',
     multiple=True,
     help="Define a name to be bound in the namespace before executing"
-    " the algotext. For example '-Dname=value'. The value may be any python"
-    " expression. These are evaluated in order so they may refer to previously"
-    " defined names.",
+         " the algotext. For example '-Dname=value'. The value may be any python"
+         " expression. These are evaluated in order so they may refer to previously"
+         " defined names.",
 )
 @click.option(
     '--data-frequency',
@@ -150,7 +155,7 @@ def ipython_only(option):
     default=pd.Timestamp.utcnow(),
     show_default=False,
     help='The date to lookup data on or before.\n'
-    '[default: <current-time>]'
+         '[default: <current-time>]'
 )
 @click.option(
     '-s',
@@ -171,7 +176,7 @@ def ipython_only(option):
     metavar='FILENAME',
     show_default=True,
     help="The location to write the perf data. If this is '-' the perf will"
-    " be written to stdout.",
+         " be written to stdout.",
 )
 @click.option(
     '--trading-calendar',
@@ -191,6 +196,35 @@ def ipython_only(option):
     default=None,
     help='Should the algorithm methods be resolved in the local namespace.'
 ))
+@click.option(
+    '--broker',
+    default=None,
+    help='Broker'
+)
+@click.option(
+    '--broker-uri',
+    default=None,
+    metavar='BROKER-URI',
+    show_default=True,
+    help='Connection to broker',
+)
+@click.option(
+    '--state-file',
+    default=None,
+    metavar='FILENAME',
+    help='Filename where the state will be stored'
+)
+@click.option(
+    '--realtime-bar-target',
+    default=None,
+    metavar='DIRNAME',
+    help='Directory where the realtime collected minutely bars are saved'
+)
+@click.option(
+    '--list-brokers',
+    is_flag=True,
+    help='Get list of available brokers'
+)
 @click.pass_context
 def run(ctx,
         algofile,
@@ -205,21 +239,60 @@ def run(ctx,
         output,
         trading_calendar,
         print_algo,
-        local_namespace):
+        local_namespace,
+        broker,
+        broker_uri,
+        state_file,
+        realtime_bar_target,
+        list_brokers):
     """Run a backtest for the given algorithm.
     """
-    # check that the start and end dates are passed correctly
-    if start is None and end is None:
-        # check both at the same time to avoid the case where a user
-        # does not pass either of these and then passes the first only
-        # to be told they need to pass the second argument also
-        ctx.fail(
-            "must specify dates with '-s' / '--start' and '-e' / '--end'",
-        )
-    if start is None:
-        ctx.fail("must specify a start date with '-s' / '--start'")
-    if end is None:
-        ctx.fail("must specify an end date with '-e' / '--end'")
+
+    if list_brokers:
+        click.echo("Supported brokers:")
+        for _, name, _ in pkgutil.iter_modules(brokers.__path__):
+            if name != 'broker':
+                click.echo(name)
+        return
+
+    if broker is None:
+        # check that the start and end dates are passed correctly
+        if start is None and end is None:
+            # check both at the same time to avoid the case where a user
+            # does not pass either of these and then passes the first only
+            # to be told they need to pass the second argument also
+            ctx.fail(
+                "must specify dates with '-s' / '--start' and '-e' / '--end'",
+            )
+        if start is None:
+            ctx.fail("must specify a start date with '-s' / '--start'")
+        if end is None:
+            ctx.fail("must specify an end date with '-e' / '--end'")
+    else:
+        if broker_uri is None:
+            ctx.fail("must specify broker-uri if broker is specified")
+
+        if state_file is None:
+            ctx.fail("must specify state-file with live trading")
+
+        if realtime_bar_target is None:
+            ctx.fail("must specify realtime-bar-target with live trading")
+
+        brokerobj = None
+        if broker:
+            mod_name = 'zipline.gens.brokers.%s_broker' % broker.lower()
+            try:
+                bmod = import_module(mod_name)
+            except ImportError:
+                ctx.fail("unsupported broker: can't import module %s" % mod_name)
+
+            cl_name = '%sBroker' % broker.upper()
+            try:
+                bclass = getattr(bmod, cl_name)
+            except AttributeError:
+                ctx.fail("unsupported broker: can't import class %s from %s" %
+                         (cl_name, mod_name))
+            brokerobj = bclass(broker_uri)
 
     if (algotext is not None) == (algofile is not None):
         ctx.fail(
@@ -249,6 +322,9 @@ def run(ctx,
         print_algo=print_algo,
         local_namespace=local_namespace,
         environ=os.environ,
+        broker=brokerobj,
+        state_filename=state_file,
+        realtime_bar_target=realtime_bar_target
     )
 
     if output == '-':
@@ -276,11 +352,11 @@ def zipline_magic(line, cell=None):
                 '--algotext', cell,
                 '--output', os.devnull,  # don't write the results by default
             ] + ([
-                # these options are set when running in line magic mode
-                # set a non None algo text to use the ipython user_ns
-                '--algotext', '',
-                '--local-namespace',
-            ] if cell is None else []) + line.split(),
+                     # these options are set when running in line magic mode
+                     # set a non None algo text to use the ipython user_ns
+                     '--algotext', '',
+                     '--local-namespace',
+                 ] if cell is None else []) + line.split(),
             '%s%%zipline' % ((cell or '') and '%'),
             # don't use system exit and propogate errors to the caller
             standalone_mode=False,
@@ -338,14 +414,14 @@ def ingest(bundle, assets_version, show_progress):
     '--before',
     type=Timestamp(),
     help='Clear all data before TIMESTAMP.'
-    ' This may not be passed with -k / --keep-last',
+         ' This may not be passed with -k / --keep-last',
 )
 @click.option(
     '-a',
     '--after',
     type=Timestamp(),
     help='Clear all data after TIMESTAMP'
-    ' This may not be passed with -k / --keep-last',
+         ' This may not be passed with -k / --keep-last',
 )
 @click.option(
     '-k',
@@ -353,7 +429,7 @@ def ingest(bundle, assets_version, show_progress):
     type=int,
     metavar='N',
     help='Clear all but the last N downloads.'
-    ' This may not be passed with -e / --before or -a / --after',
+         ' This may not be passed with -e / --before or -a / --after',
 )
 def clean(bundle, before, after, keep_last):
     """Clean up data downloaded with the ingest command.

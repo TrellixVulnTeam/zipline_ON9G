@@ -54,6 +54,7 @@ def api_method(f):
                 % f.__name__
             )
         return getattr(algo_instance, f.__name__)(*args, **kwargs)
+
     # Add functor to zipline.api
     setattr(zipline.api, f.__name__, wrapped)
     zipline.api.__all__.append(f.__name__)
@@ -73,13 +74,16 @@ def require_not_initialized(exception):
     def method(self):
         # Do stuff that should only be allowed during initialize.
     """
+
     def decorator(method):
         @wraps(method)
         def wrapped_method(self, *args, **kwargs):
             if self.initialized:
                 raise exception
             return method(self, *args, **kwargs)
+
         return wrapped_method
+
     return decorator
 
 
@@ -95,13 +99,16 @@ def require_initialized(exception):
     def method(self):
         # Do stuff that should only be allowed after initialize.
     """
+
     def decorator(method):
         @wraps(method)
         def wrapped_method(self, *args, **kwargs):
             if not self.initialized:
                 raise exception
             return method(self, *args, **kwargs)
+
         return wrapped_method
+
     return decorator
 
 
@@ -117,11 +124,39 @@ def disallowed_in_before_trading_start(exception):
     def method(self):
         # Do stuff that is not allowed inside before_trading_start.
     """
+
     def decorator(method):
         @wraps(method)
         def wrapped_method(self, *args, **kwargs):
             if self._in_before_trading_start:
                 raise exception
             return method(self, *args, **kwargs)
+
         return wrapped_method
+
+    return decorator
+
+
+def allowed_only_in_before_trading_start(exception):
+    """
+    Decorator for API methods that can be called only from within
+    TradingAlgorithm.before_trading_start.  `exception` will be raised if the
+    method is called outside `before_trading_start`.
+
+    Usage
+    -----
+    @allowed_only_in_before_trading_start(SomeException("Don't do that!"))
+    def method(self):
+        # Do stuff that is only allowed inside before_trading_start.
+    """
+
+    def decorator(method):
+        @wraps(method)
+        def wrapped_method(self, *args, **kwargs):
+            if not self._in_before_trading_start:
+                raise exception
+            return method(self, *args, **kwargs)
+
+        return wrapped_method
+
     return decorator

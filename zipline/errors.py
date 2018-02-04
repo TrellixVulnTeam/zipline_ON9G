@@ -293,6 +293,14 @@ class OrderInBeforeTradingStart(ZiplineError):
     msg = "Cannot place orders inside before_trading_start."
 
 
+class ScheduleFunctionOutsideTradingStart(ZiplineError):
+    """
+    Raised when an algorithm schedules functions outside of
+    before_trading_start()
+    """
+    msg = "schedule_function() should only be called in before_trading_start()"
+
+
 class MultipleSymbolsFound(ZiplineError):
     """
     Raised when a symbol() call contains a symbol that changed over
@@ -380,6 +388,7 @@ class SidsNotFound(ZiplineError):
     Raised when a retrieve_asset() or retrieve_all() call contains a
     non-existent sid.
     """
+
     @lazyval
     def plural(self):
         return len(self.sids) > 1
@@ -399,6 +408,7 @@ class EquitiesNotFound(SidsNotFound):
     """
     Raised when a call to `retrieve_equities` fails to find an asset.
     """
+
     @lazyval
     def msg(self):
         if self.plural:
@@ -410,6 +420,7 @@ class FutureContractsNotFound(SidsNotFound):
     """
     Raised when a call to `retrieve_futures_contracts` fails to find an asset.
     """
+
     @lazyval
     def msg(self):
         if self.plural:
@@ -655,6 +666,7 @@ class UnsupportedDataType(ZiplineError):
     """
     Raised by CustomFactors with unsupported dtypes.
     """
+
     def __init__(self, hint='', **kwargs):
         if hint:
             hint = ' ' + hint
@@ -728,7 +740,7 @@ class HistoryWindowStartsBeforeData(ZiplineError):
     msg = (
         "History window extends before {first_trading_day}. To use this "
         "history window, start the backtest on or after {suggested_start_day}."
-        )
+    )
 
 
 class NonExistentAssetInTimeFrame(ZiplineError):

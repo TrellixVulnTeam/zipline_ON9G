@@ -1,22 +1,27 @@
 import os
 import re
-from runpy import run_path
 import sys
 import warnings
+from functools import partial
+from runpy import run_path
 
 import click
+
 try:
     from pygments import highlight
     from pygments.lexers import PythonLexer
     from pygments.formatters import TerminalFormatter
+
     PYGMENTS = True
 except:
     PYGMENTS = False
 from toolz import valfilter, concatv
 
 from zipline.algorithm import TradingAlgorithm
+from zipline.algorithm_live import LiveTradingAlgorithm
 from zipline.data.bundles.core import load
 from zipline.data.data_portal import DataPortal
+from zipline.data.data_portal_live import DataPortalLive
 from zipline.finance.trading import TradingEnvironment
 from zipline.pipeline.data import USEquityPricing
 from zipline.pipeline.loaders import USEquityPricingLoader
@@ -64,7 +69,10 @@ def _run(handle_data,
          trading_calendar,
          print_algo,
          local_namespace,
-         environ):
+         environ,
+         broker,
+         state_filename,
+         realtime_bar_target):
     """Run a backtest for the given algorithm.
 
     This is shared between the cli and :func:`zipline.run_algo`.
@@ -134,9 +142,12 @@ def _run(handle_data,
                 str(bundle_data.asset_finder.engine.url),
             )
         env = TradingEnvironment(asset_db_path=connstr, environ=environ)
-        first_trading_day =\
+        first_trading_day = \
             bundle_data.equity_minute_bar_reader.first_trading_day
-        data = DataPortal(
+        DataPortalClass = (partial(DataPortalLive, broker)
+                           if broker
+                           else DataPortal)
+        data = DataPortalClass(
             env.asset_finder,
             trading_calendar=trading_calendar,
             first_trading_day=first_trading_day,
@@ -159,6 +170,12 @@ def _run(handle_data,
     else:
         env = TradingEnvironment(environ=environ)
         choose_loader = None
+
+    TradingAlgorithmClass = (partial(LiveTradingAlgorithm,
+                                     broker=broker,
+                                     state_filename=state_filename,
+                                     realtime_bar_target=realtime_bar_target)
+                             if broker else TradingAlgorithm)
 
     perf = TradingAlgorithm(
         namespace=namespace,
@@ -369,4 +386,7 @@ def run_algorithm(start,
         print_algo=False,
         local_namespace=False,
         environ=environ,
+        broker=None,
+        state_filename=None,
+        realtime_bar_target=None
     )

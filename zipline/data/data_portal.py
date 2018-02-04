@@ -306,9 +306,7 @@ class DataPortal(object):
         if reader is None:
             return
 
-        if reader.trading_calendar.name == self.trading_calendar.name:
-            return reader
-        elif reader.data_frequency == 'minute':
+        if reader.data_frequency == 'minute':
             return ReindexMinuteBarReader(
                 self.trading_calendar,
                 reader,

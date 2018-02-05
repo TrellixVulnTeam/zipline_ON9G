@@ -882,6 +882,17 @@ class BcolzMinuteBarWriter(object):
         metadata.end_session = date
         metadata.write(self._rootdir)
 
+    def update_metadata(self):
+        metadata = BcolzMinuteBarMetadata(
+            self._default_ohlc_ratio,
+            self._ohlc_ratios_per_sid,
+            self._calendar,
+            self._start_session,
+            self._end_session,
+            self._minutes_per_day,
+        )
+        metadata.write(self._rootdir)
+
 
 class BcolzMinuteBarReader(MinuteBarReader):
     """

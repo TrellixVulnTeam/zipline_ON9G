@@ -255,6 +255,7 @@ def run(ctx,
                 click.echo(name)
         return
 
+    brokerobj = None
     if broker is None:
         # check that the start and end dates are passed correctly
         if start is None and end is None:
@@ -278,7 +279,6 @@ def run(ctx,
         if realtime_bar_target is None:
             ctx.fail("must specify realtime-bar-target with live trading")
 
-        brokerobj = None
         if broker:
             mod_name = 'zipline.gens.brokers.%s_broker' % broker.lower()
             try:
